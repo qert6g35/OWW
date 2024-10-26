@@ -7,11 +7,14 @@
 
 static const int NUMBER_OF_THREADS = 2;
 static const int MATRIX_SIZE = 2;
-using type = int;
+using type = int16_t;
 
 // using Matrix = std::vector<std::vector<int>>;
 
 void T(type *m){
+    //
+    // transponowanie macierzy (no odwracamy się ) otrzymujemy m^T
+    //
     static type mT[MATRIX_SIZE * MATRIX_SIZE] = {0};
     for (int i = 0; i < MATRIX_SIZE; i++)
         for (int j = 0; j < MATRIX_SIZE; j++){
@@ -22,13 +25,17 @@ void T(type *m){
 }
 
 void generate_data(type *m, const type range_from,const type range_to){
+    //
+    // generujemy dane i wkładamy je do m
+    //
+    // dane są z rozkładu jednostajnego z zakresu <range_from,range_to)
+    //
     std::random_device                  rand_dev;
     std::mt19937                        generator(rand_dev());
     std::uniform_int_distribution<type>  distr(range_from, range_to);
     //type sum;
     for(int i = 0; i<MATRIX_SIZE*MATRIX_SIZE; i++){
         m[i] = distr(generator);
-        std::cout << m[i] ;
     }
     //std::cout << "sum:" << sum << "   we sum n values, n:"<< MATRIX_SIZE*MATRIX_SIZE <<std::endl;
 }
