@@ -60,8 +60,8 @@ void matmul_thread_t(type *c, const type *a, const type *b, int thread_id) {
         // finish_b = start_b + MATRIX_SIZE;
         elem_of_c = 0;
         for(int i = 0; i < MATRIX_SIZE; i++){
-            elem_of_a = start_a + i;
-            elem_of_b = start_b + i;
+            elem_of_a = a[start_a + i];
+            elem_of_b = b[start_b + i];
             elem_of_c += elem_of_a * elem_of_b;
         }
         c[elem_id] = elem_of_c;
