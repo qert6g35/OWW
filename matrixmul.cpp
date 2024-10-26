@@ -4,20 +4,20 @@
 #include <thread>
 
 static const int NUMBER_OF_THREADS = 2;
-static const int n = 2;
+static const int MATRIX_SIZE = 2;
 typedef float type;
 
 void matmul(const type *a, const type *b, type *c) {
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++)
-            for (int k = 0; k < n; k++)
-                c[i * n + j] += a[i * n + k] * b[k * n + j];
+    for (int i = 0; i < MATRIX_SIZE; i++)
+        for (int j = 0; j < MATRIX_SIZE; j++)
+            for (int k = 0; k < MATRIX_SIZE; k++)
+                c[i * MATRIX_SIZE + j] += a[i * MATRIX_SIZE + k] * b[k * MATRIX_SIZE + j];
 }
 
 void showMatrix(const type *matrix){
-    for (int i = 0; i < n; i++){
-        for (int j = 0; j < n; j++){
-            std::cout<<matrix[i * n + j]<<" ";
+    for (int i = 0; i < MATRIX_SIZE; i++){
+        for (int j = 0; j < MATRIX_SIZE; j++){
+            std::cout<<matrix[i * MATRIX_SIZE + j]<<" ";
         }
         std::cout<< std::endl;
     }
