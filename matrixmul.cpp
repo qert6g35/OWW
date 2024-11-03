@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <iostream>
 #include <fstream>
 #include <random>
@@ -6,8 +7,9 @@
 #include <vector>
 
 static const int NUMBER_OF_THREADS = 2;
-static const int MATRIX_SIZE = 2;
+static const int MATRIX_SIZE = 4;
 using type = int16_t;
+//using MPI_type = MPI_INT
 
 // using Matrix = std::vector<std::vector<int>>;
 
@@ -116,34 +118,112 @@ void matmul_threaded(type *c, const type *a, const type *b) {
     
 }
 
-int main() {
+void matmul_MPI(type *c, const type *a, const type *b, int start_op,int finish_op) {
+    type elem_of_a, elem_of_b;
+    type elem_of_c;
+    int row_a, start_a, finish_a;
+    int col_b, start_b, finish_b;
+
+    for(int elem_id = start_op; elem_id < finish_op; elem_id++){
+        row_a = (elem_id/MATRIX_SIZE);
+        //      0 0 0  id/size dla size = 3 macierzy wyjściowej
+        //      1 1 1
+        //      2 2 2
+        start_a = (row_a*MATRIX_SIZE);
+        // finish_a = start_a + MATRIX_SIZE;
+        col_b = (elem_id%MATRIX_SIZE); // zakładam że transponowano b i ze indeksowanie teraz jest z gory na dol
+        //      0 1 2  id%size  dla size = 3 macierzy wyjściowej
+        //      0 1 2
+        //      0 1 2
+        start_b = (col_b*MATRIX_SIZE); 
+        // finish_b = start_b + MATRIX_SIZE;
+        elem_of_c = 0;
+        for(int i = 0; i < MATRIX_SIZE; i++){
+            elem_of_a = a[start_a + i];
+            elem_of_b = b[start_b + i];
+            elem_of_c += elem_of_a * elem_of_b;
+        }
+        c[elem_id] = elem_of_c;
+        
+    }
+}
+
+
+int main(int argc,char** argv) {
+    MPI_Init(&argc,&argv);// inicjalizacji MPI
     type a[MATRIX_SIZE * MATRIX_SIZE];
-    type b[MATRIX_SIZE * MATRIX_SIZE]; //=  { 1,0,0,
-    //                                        0,1,0,
-    //                                        0,0,1};
+    type b[MATRIX_SIZE * MATRIX_SIZE];  //=  { 1,0,0,0,
+                                       //     0,1,0,0,
+                                       //     0,0,1,0,
+                                       //     0,0,0,1};
     type c[MATRIX_SIZE * MATRIX_SIZE] = {0};
-
-    const type range_start = 0;
+    
+    const type range_start = 0;// wypadalo by to zmienic na wczytywane z arg
     const type range_end = 10;
+    
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    generate_data(a,range_start,range_end);
-    generate_data(b,range_start,range_end);
-    //generate_data(b,range_start,range_end);
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    
+    if(world_rank == 0){
+      generate_data(a,range_start,range_end);
+      generate_data(b,range_start,range_end);
+    }
+    
+    MPI_Bcast(a,MATRIX_SIZE * MATRIX_SIZE,MPI_INT,0,MPI_COMM_WORLD);
+    MPI_Bcast(b,MATRIX_SIZE * MATRIX_SIZE,MPI_INT,0,MPI_COMM_WORLD);
+    
+    int start_end_operation[2] = {0,0};
+    
+    const int all_operations = (MATRIX_SIZE * MATRIX_SIZE);
+    const int op_for_one = all_operations/world_size;
+    const int rest_op = all_operations%world_size;
+    if(world_rank == 0){
+        std::cout<<"matrix A"<<std::endl;
+        showMatrix(a);
+        std::cout<<"matrix B"<<std::endl;
+        showMatrix(b);
+        for(int thread_id = world_size-1; thread_id >= 0; thread_id--){
+            start_end_operation[0] = op_for_one * thread_id;
+            start_end_operation[1] = op_for_one * (thread_id+1) + rest_op * ( thread_id == world_size-1 );
+            
+            if(thread_id != 0){
+                MPI_Send(&start_end_operation, 2, MPI_INT,thread_id , 0, MPI_COMM_WORLD);
+            }
+        }
+    }else{
+        MPI_Recv(&start_end_operation,2,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    
+    //std::cout<<"worker_rank:" << world_rank << ", start_op:"<< start_end_operation[0] << ", end_op:"<< start_end_operation[1] <<std::endl;
+    matmul_MPI(c, a, b, start_end_operation[0],start_end_operation[1]);
 
-    // for (int i = 0; i < MATRIX_SIZE * MATRIX_SIZE; ++i) {
-    //     a[i] = i;
-    //     b[i] = i;
-    // }
-
-    std::cout << "Matrix A:" << std::endl;
-    showMatrix(a);
-    T(b);
-    std::cout << "Matrix B:" << std::endl;
-    showMatrix(b);
-    T(b);
-    matmul_threaded(c, a, b);
-    std::cout << "Result Matrix C:" << std::endl;
-    showMatrix(c);
+    if(world_rank == 0){
+        //showMatrix(c);
+        type c_rcv[op_for_one + rest_op] = {0};
+        for(int thread_id = world_size-1; thread_id > 0; thread_id--){
+            MPI_Recv(&c_rcv,(op_for_one + rest_op* ( thread_id == world_size-1 )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            //std::cout<<"recived data from worker:" << thread_id << " start_sending"<<std::endl;
+            for (int i = 0; i< (op_for_one + rest_op* ( thread_id == world_size-1 )); i++){
+              c[thread_id * op_for_one + i] = c_rcv[i];
+            }
+        }
+        std::cout<<"Solution"<<std::endl;
+        showMatrix(c);
+    }else{
+        const int num_of_op = start_end_operation[1] - start_end_operation[0];
+        type sender[num_of_op] = {0};
+        for(int i = 0;i < num_of_op; i++){
+          sender[i] = c[i + start_end_operation[0]];
+          //std::cout<<"worker_rank:" << world_rank << " calculated position"<< i + start_end_operation[0] << ", as value equal:"<< sender[i] <<std::endl;
+        }
+        //std::cout<<"worker_rank:" << world_rank << " start_sending"<<std::endl;
+        MPI_Send(&sender,num_of_op,MPI_INT, 0,world_rank, MPI_COMM_WORLD);
+    }
+    
+    MPI_Finalize();
 
     return 0;
 }
