@@ -7,8 +7,8 @@
 #include <vector>
 
 static const int NUMBER_OF_THREADS = 2;
-static const int MATRIX_SIZE = 4;
-using type = int16_t;
+static int MATRIX_SIZE = 5;
+using type = int;
 //using MPI_type = MPI_INT
 
 // using Matrix = std::vector<std::vector<int>>;
@@ -17,7 +17,7 @@ void T(type *m){
     //
     // transponowanie macierzy (no odwracamy się ) otrzymujemy m^T
     //
-    static type mT[MATRIX_SIZE * MATRIX_SIZE] = {0};
+    type mT[MATRIX_SIZE * MATRIX_SIZE] = {0};
     for (int i = 0; i < MATRIX_SIZE; i++)
         for (int j = 0; j < MATRIX_SIZE; j++){
             mT[i * MATRIX_SIZE + j] = m[j * MATRIX_SIZE + i];
@@ -28,7 +28,7 @@ void T(type *m){
 
 void generate_data(type *m, const type range_from,const type range_to){
     //
-    // generujemy dane i wkładamy je do m
+    // generujemy dane i wkładamy je do std::cout<<m
     //
     // dane są z rozkładu jednostajnego z zakresu <range_from,range_to)
     //
@@ -148,18 +148,15 @@ void matmul_MPI(type *c, const type *a, const type *b, int start_op,int finish_o
     }
 }
 
+void reed_matsize(int argc,char** argv){
+  if(argc > 1){
+    MATRIX_SIZE = std::stoi(argv[argc -1]);
+  }
+}
+
 
 int main(int argc,char** argv) {
     MPI_Init(&argc,&argv);// inicjalizacji MPI
-    type a[MATRIX_SIZE * MATRIX_SIZE];
-    type b[MATRIX_SIZE * MATRIX_SIZE];  //=  { 1,0,0,0,
-                                       //     0,1,0,0,
-                                       //     0,0,1,0,
-                                       //     0,0,0,1};
-    type c[MATRIX_SIZE * MATRIX_SIZE] = {0};
-    
-    const type range_start = 0;// wypadalo by to zmienic na wczytywane z arg
-    const type range_end = 10;
     
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -167,24 +164,41 @@ int main(int argc,char** argv) {
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     
+    reed_matsize(argc,argv);
+
+    type a[MATRIX_SIZE * MATRIX_SIZE];
+    type b[MATRIX_SIZE * MATRIX_SIZE]; //=  { 1,0,0,0,
+                                       //     0,1,0,0,
+                                       //     0,0,1,0,
+                                       //     0,0,0,1};
+    type c[MATRIX_SIZE * MATRIX_SIZE] = {0};
+    auto start_time = std::chrono::steady_clock::now();
+    auto end_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double,std::milli> exec_time;
+    
+    const type range_start = 0;
+    const type range_end = 10;
+    
     if(world_rank == 0){
       generate_data(a,range_start,range_end);
       generate_data(b,range_start,range_end);
+      std::cout<<"matrix A"<<std::endl;
+        showMatrix(a);
+        std::cout<<"matrix B"<<std::endl;
+        showMatrix(b);
+      start_time = std::chrono::steady_clock::now();
     }
     
     MPI_Bcast(a,MATRIX_SIZE * MATRIX_SIZE,MPI_INT,0,MPI_COMM_WORLD);
     MPI_Bcast(b,MATRIX_SIZE * MATRIX_SIZE,MPI_INT,0,MPI_COMM_WORLD);
-    
+    //std::cout<<"worker_rank:" << world_rank << "after Bcast"<< std::endl;
     int start_end_operation[2] = {0,0};
     
     const int all_operations = (MATRIX_SIZE * MATRIX_SIZE);
     const int op_for_one = all_operations/world_size;
     const int rest_op = all_operations%world_size;
+    //std::cout<<"all_op:" << all_operations << ", op_for_one:"<<op_for_one <<", rest_op:"<<rest_op <<std::endl;
     if(world_rank == 0){
-        std::cout<<"matrix A"<<std::endl;
-        showMatrix(a);
-        std::cout<<"matrix B"<<std::endl;
-        showMatrix(b);
         for(int thread_id = world_size-1; thread_id >= 0; thread_id--){
             start_end_operation[0] = op_for_one * thread_id;
             start_end_operation[1] = op_for_one * (thread_id+1) + rest_op * ( thread_id == world_size-1 );
@@ -197,20 +211,27 @@ int main(int argc,char** argv) {
         MPI_Recv(&start_end_operation,2,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     
-    //std::cout<<"worker_rank:" << world_rank << ", start_op:"<< start_end_operation[0] << ", end_op:"<< start_end_operation[1] <<std::endl;
+    std::cout<<"worker_rank:" << world_rank << ", start_op:"<< start_end_operation[0] << ", end_op:"<< start_end_operation[1] <<std::endl;
     matmul_MPI(c, a, b, start_end_operation[0],start_end_operation[1]);
-
     if(world_rank == 0){
         //showMatrix(c);
-        type c_rcv[op_for_one + rest_op] = {0};
+        type RecvMatrix[op_for_one + rest_op] = {0};
+        //showMatrix(c);
         for(int thread_id = world_size-1; thread_id > 0; thread_id--){
-            MPI_Recv(&c_rcv,(op_for_one + rest_op* ( thread_id == world_size-1 )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            //showMatrix(c);
+            MPI_Recv(&RecvMatrix,(op_for_one + rest_op* ( thread_id == (world_size-1) )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            //showMatrix(c);
             //std::cout<<"recived data from worker:" << thread_id << " start_sending"<<std::endl;
-            for (int i = 0; i< (op_for_one + rest_op* ( thread_id == world_size-1 )); i++){
-              c[thread_id * op_for_one + i] = c_rcv[i];
+            for (int i = 0; i< (op_for_one + rest_op* ( thread_id == (world_size-1) )); i++){
+              c[thread_id * op_for_one + i] = RecvMatrix[i];
             }
+            //showMatrix(c);
         }
-        std::cout<<"Solution"<<std::endl;
+        end_time = std::chrono::steady_clock::now();
+        exec_time = end_time-start_time;
+        char input;
+        std::cout<<"Solution achived in: "<< exec_time.count() << "ms" <<std::endl;
+        std::cin>>input;
         showMatrix(c);
     }else{
         const int num_of_op = start_end_operation[1] - start_end_operation[0];
