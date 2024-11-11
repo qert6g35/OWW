@@ -9,6 +9,8 @@
 static const bool MANUAL_TEST = false;
 static const int NUMBER_OF_THREADS = 2;
 static int MATRIX_SIZE = 5;
+static int RANNGE_FROM = -100;
+static int RANGE_TO = 100;
 using type = int;
 //using MPI_type = MPI_INT
 
@@ -27,7 +29,7 @@ void T(type *m){
         m[i] = mT[i];
 }
 
-void generate_data(type *m, const type range_from,const type range_to,const bool spawn_unitary = false){
+void generate_data(type *m,const bool spawn_unitary = false){
     //
     // generujemy dane i wkładamy je do std::cout<<m
     //
@@ -35,7 +37,7 @@ void generate_data(type *m, const type range_from,const type range_to,const bool
     //
     std::random_device                  rand_dev;
     std::mt19937                        generator(rand_dev());
-    std::uniform_int_distribution<type>  distr(range_from, range_to);
+    std::uniform_int_distribution<int>  distr(RANNGE_FROM, RANGE_TO);
     //type sum;
     if(spawn_unitary == false){
         for(int i = 0; i<MATRIX_SIZE*MATRIX_SIZE; i++){
@@ -159,21 +161,30 @@ void matmul_MPI(type *c, const type *a, const type *b, int start_op,int finish_o
 }
 
 void reed_matsize(int argc,char** argv){
+  //std::cout<<"reed_states";
   if(argc > 1){
     MATRIX_SIZE = std::stoi(argv[argc -1]);
+  }//std::cout<<"reed_states";
+  if(argc > 2){
+    RANGE_TO = std::stoi(argv[argc -2]);
   }
+  if(argc > 3){
+    RANNGE_FROM = std::stoi(argv[argc -3]);
+  }
+  //std::cout<<"reed_states 2";
 }
 
 
 int main(int argc,char** argv) {
+    //std::cout<<"reed_states 0";
     MPI_Init(&argc,&argv);// inicjalizacji MPI
-    
+    //std::cout<<"reed_states -1";
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
+    //std::cout<<"reed_states -2";
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-    
+    //std::cout<<"reed_states -3";
     reed_matsize(argc,argv);
 
     type *a;
@@ -190,13 +201,13 @@ int main(int argc,char** argv) {
     const type range_end = 10;
     
     if(world_rank == 0){
-      generate_data(a,range_start,range_end);
-      generate_data(b,range_start,range_end,true);
+      generate_data(a);
+      generate_data(b,false);
         if(MANUAL_TEST){
-            //std::cout<<"matrix A"<<std::endl;
-            //showMatrix(a);
-            //std::cout<<"matrix B"<<std::endl;
-            //showMatrix(b);
+            std::cout<<"matrix A"<<std::endl;
+            showMatrix(a);
+            std::cout<<"matrix B"<<std::endl;
+            showMatrix(b);
         }
       start_time = std::chrono::steady_clock::now();
     }
