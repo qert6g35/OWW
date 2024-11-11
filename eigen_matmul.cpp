@@ -5,8 +5,8 @@
 #include <random>
 
 static int MATRIX_SIZE = 5;
-static int RANNGE_FROM = 0;
-static int RANGE_TO = 10;
+static int RANNGE_FROM = -100;
+static int RANGE_TO = 100;
 
 
 Eigen::MatrixXd generate_data(){
