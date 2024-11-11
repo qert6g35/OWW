@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 
+static const bool MANUAL_TEST = false;
 static const int NUMBER_OF_THREADS = 2;
 static int MATRIX_SIZE = 5;
 using type = int;
@@ -26,7 +27,7 @@ void T(type *m){
         m[i] = mT[i];
 }
 
-void generate_data(type *m, const type range_from,const type range_to){
+void generate_data(type *m, const type range_from,const type range_to,const bool spawn_unitary = false){
     //
     // generujemy dane i wkładamy je do std::cout<<m
     //
@@ -36,8 +37,17 @@ void generate_data(type *m, const type range_from,const type range_to){
     std::mt19937                        generator(rand_dev());
     std::uniform_int_distribution<type>  distr(range_from, range_to);
     //type sum;
-    for(int i = 0; i<MATRIX_SIZE*MATRIX_SIZE; i++){
-        m[i] = distr(generator);
+    if(spawn_unitary == false){
+        for(int i = 0; i<MATRIX_SIZE*MATRIX_SIZE; i++){
+            m[i] = distr(generator);
+        }
+    }else{
+        for(int i = 0; i<MATRIX_SIZE*MATRIX_SIZE; i++){
+            m[i] = 0;
+        }
+        for(int i = 0; i<MATRIX_SIZE; i++){
+            m[i + MATRIX_SIZE * i] = 1;
+        }
     }
     //std::cout << "sum:" << sum << "   we sum n values, n:"<< MATRIX_SIZE*MATRIX_SIZE <<std::endl;
 }
@@ -166,12 +176,12 @@ int main(int argc,char** argv) {
     
     reed_matsize(argc,argv);
 
-    type a[MATRIX_SIZE * MATRIX_SIZE];
-    type b[MATRIX_SIZE * MATRIX_SIZE]; //=  { 1,0,0,0,
-                                       //     0,1,0,0,
-                                       //     0,0,1,0,
-                                       //     0,0,0,1};
-    type c[MATRIX_SIZE * MATRIX_SIZE] = {0};
+    type *a;
+    a = (type*) malloc(sizeof(type)* MATRIX_SIZE * MATRIX_SIZE);
+    type *b;
+    b = (type*) malloc(sizeof(type)* MATRIX_SIZE * MATRIX_SIZE);
+    type *c;
+    c = (type*) malloc(sizeof(type)* MATRIX_SIZE * MATRIX_SIZE);
     auto start_time = std::chrono::steady_clock::now();
     auto end_time = std::chrono::steady_clock::now();
     std::chrono::duration<double,std::milli> exec_time;
@@ -181,11 +191,13 @@ int main(int argc,char** argv) {
     
     if(world_rank == 0){
       generate_data(a,range_start,range_end);
-      generate_data(b,range_start,range_end);
-      std::cout<<"matrix A"<<std::endl;
-        showMatrix(a);
-        std::cout<<"matrix B"<<std::endl;
-        showMatrix(b);
+      generate_data(b,range_start,range_end,true);
+        if(MANUAL_TEST){
+            //std::cout<<"matrix A"<<std::endl;
+            //showMatrix(a);
+            //std::cout<<"matrix B"<<std::endl;
+            //showMatrix(b);
+        }
       start_time = std::chrono::steady_clock::now();
     }
     
@@ -211,39 +223,52 @@ int main(int argc,char** argv) {
         MPI_Recv(&start_end_operation,2,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
     }
     
-    std::cout<<"worker_rank:" << world_rank << ", start_op:"<< start_end_operation[0] << ", end_op:"<< start_end_operation[1] <<std::endl;
+    //std::cout<<"worker_rank:" << world_rank << ", start_op:"<< start_end_operation[0] << ", end_op:"<< start_end_operation[1] <<std::endl;
     matmul_MPI(c, a, b, start_end_operation[0],start_end_operation[1]);
     if(world_rank == 0){
         //showMatrix(c);
-        type RecvMatrix[op_for_one + rest_op] = {0};
-        //showMatrix(c);
+        type *RecvMatrix;
+        RecvMatrix = (type*) malloc(sizeof(type)* (op_for_one + rest_op));
+        //std::cout<<"worker 0 allocated memory RecvMatrix = "<<RecvMatrix<<std::endl;
         for(int thread_id = world_size-1; thread_id > 0; thread_id--){
-            //showMatrix(c);
-            MPI_Recv(&RecvMatrix,(op_for_one + rest_op* ( thread_id == (world_size-1) )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            //showMatrix(c);
-            //std::cout<<"recived data from worker:" << thread_id << " start_sending"<<std::endl;
+            //std::cout<<"worker 0 strat loop:"<<thread_id<<std::endl;
+            MPI_Recv(RecvMatrix,(op_for_one + rest_op* ( thread_id == (world_size-1) )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            //std::cout<<"worker 0 recived data"<<std::endl;
             for (int i = 0; i< (op_for_one + rest_op* ( thread_id == (world_size-1) )); i++){
+            //std::cout<<"worker 0|  FROM c["<<thread_id * op_for_one + i<<"] = rcv["<<i<<"]"<<std::endl;
+            //std::cout<<"worker 0|  c["<<thread_id * op_for_one + i<<"] = "<<c[thread_id * op_for_one + i]<<std::endl;
+            //std::cout<<"worker 0|  rcv["<<i<<"] = "<<RecvMatrix[i]<<std::endl;
               c[thread_id * op_for_one + i] = RecvMatrix[i];
             }
+            //std::cout<<"worker 0 copied data"<<std::endl;
             //showMatrix(c);
         }
+        free(RecvMatrix);
         end_time = std::chrono::steady_clock::now();
         exec_time = end_time-start_time;
         char input;
-        std::cout<<"Solution achived in: "<< exec_time.count() << "ms" <<std::endl;
-        std::cin>>input;
-        showMatrix(c);
+        if(MANUAL_TEST){
+            //showMatrix(c);
+            std::cout<<"Solution achived in: "<< exec_time.count() << "ms" <<std::endl;
+        }else{
+            std::cout<< exec_time.count();
+        }
     }else{
+        //showMatrix(c);
         const int num_of_op = start_end_operation[1] - start_end_operation[0];
-        type sender[num_of_op] = {0};
+        type *sender;
+        sender = (type*) malloc(sizeof(type)* num_of_op);
         for(int i = 0;i < num_of_op; i++){
           sender[i] = c[i + start_end_operation[0]];
-          //std::cout<<"worker_rank:" << world_rank << " calculated position"<< i + start_end_operation[0] << ", as value equal:"<< sender[i] <<std::endl;
+          //std::cout<<"worker_rank:" << world_rank <<" calculated position"<< i + start_end_operation[0] << ", as value equal:"<< sender[i] <<std::endl;
         }
         //std::cout<<"worker_rank:" << world_rank << " start_sending"<<std::endl;
-        MPI_Send(&sender,num_of_op,MPI_INT, 0,world_rank, MPI_COMM_WORLD);
+        MPI_Send(sender,num_of_op,MPI_INT, 0,world_rank, MPI_COMM_WORLD);
+        free(sender);
     }
-    
+    free(a);
+    free(b);
+    free(c);
     MPI_Finalize();
 
     return 0;
