@@ -50,15 +50,22 @@ program_parrarel = "matmul"
 program_ortodox = "./eigen"  
 program_panmicia = "./seq"
 
-procs_list = [6,8,12,16,32]  # Liczba procesorów
-repeats = [10]*500  # Liczba powtórzeń
-matrix_size = range(100,1100,100)
+procs_list = [1,2,4,6,8,12,16,32]  # Liczba procesorów
+repeats_list = [10]*100  # Liczba powtórzeń
+repeats = 1000
 
+matrix_size = list(range(10,100,10))
+matrix_size += list(range(100,1100,100))
+
+print(matrix_size)
 # Zbieranie wyników
 output_file = "times.csv"
+i = 0
 with open(output_file, "w") as f:
     f.write("processes,size,time\n")
-    for repeat in repeats:
+    for repeat in repeats_list:
+        i += 1
+        print("powt: "+str(i)+"/"+str(len(repeats_list)))
         for procs in procs_list:
             for m_size in matrix_size:
                 print(f"Uruchamianie benchmarku dla {procs} procesorów, rozmiaru macierzy {m_size}")
@@ -71,24 +78,24 @@ with open(output_file, "w") as f:
                     f.write(f"{procs},{m_size},{timee}\n")
                 time.sleep(1)
  
-    # for m_size in matrix_size:
-    #     print(f"Uruchamianie benchmarku sekwencyjnie dla rozmiaru macierzy {m_size}")
+    for m_size in matrix_size:
+        print(f"Uruchamianie benchmarku sekwencyjnie dla rozmiaru macierzy {m_size}")
 
-    #     # Zbieranie wyników dla określonej liczby procesorów
-    #     times = benchmark_seq(program_ortodox, repeats, m_size)
+        # Zbieranie wyników dla określonej liczby procesorów
+        times = benchmark_seq(program_ortodox, repeats, m_size)
 
-    #     # Zapisanie wyników do pliku
-    #     for time in times:
-    #         f.write(f"{0},{m_size},{time}\n")
+        # Zapisanie wyników do pliku
+        for time in times:
+            f.write(f"{0},{m_size},{time}\n")
 
-    # for m_size in matrix_size:
-    #     print(f"Uruchamianie benchmarku sekwencyjnie dla rozmiaru macierzy {m_size}")
+    for m_size in matrix_size:
+        print(f"Uruchamianie benchmarku sekwencyjnie dla rozmiaru macierzy {m_size}")
 
-    #     # Zbieranie wyników dla określonej liczby procesorów
-    #     times = benchmark_seq(program_panmicia, repeats, m_size)
+        # Zbieranie wyników dla określonej liczby procesorów
+        times = benchmark_seq(program_panmicia, repeats, m_size)
 
-    #     # Zapisanie wyników do pliku
-    #     for time in times:
-    #         f.write(f"{-1},{m_size},{time}\n")
+        # Zapisanie wyników do pliku
+        for time in times:
+            f.write(f"{-1},{m_size},{time}\n")
 
 print(f"Benchmark zakończony. Wyniki zapisano w pliku {output_file}.")
