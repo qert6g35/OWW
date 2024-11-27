@@ -11,6 +11,7 @@ static const int NUMBER_OF_THREADS = 2;
 static int MATRIX_SIZE = 5;
 static int RANNGE_FROM = -100;
 static int RANGE_TO = 100;
+static bool collect_communication_time = false;
 using type = int;
 //using MPI_type = MPI_INT
 
@@ -165,10 +166,19 @@ void reed_matsize(int argc,char** argv){
   if(argc > 1){
     MATRIX_SIZE = std::stoi(argv[argc -1]);
   }//std::cout<<"reed_states";
-  if(argc > 2){
+  if(argc > 4 || argc == 3){//To daje możliwość odpalenia Size,comunication/c,rangeFrom,rangeTo lub Size,communication/c
+    collect_communication_time = (argv[argc - 2][0] == "c");
+  }
+  if(argc > 4){
+    RANGE_TO = std::stoi(argv[argc -3]);
+  }
+  if(argc > 4){ // To daje możliwość odpalenia Size,comunication,rangeFrom,rangeTo
+    RANNGE_FROM = std::stoi(argv[argc -4]);
+  }
+  if(argc == 4){ // To daje możliwość odpalenia Size,rangeFrom,rangeTo
     RANGE_TO = std::stoi(argv[argc -2]);
   }
-  if(argc > 3){
+  if(argc == 4){
     RANNGE_FROM = std::stoi(argv[argc -3]);
   }
   //std::cout<<"reed_states 2";
@@ -195,6 +205,7 @@ int main(int argc,char** argv) {
     c = (type*) malloc(sizeof(type)* MATRIX_SIZE * MATRIX_SIZE);
     auto start_time = std::chrono::steady_clock::now();
     auto end_time = std::chrono::steady_clock::now();
+    double comm_time = 0.0;
     std::chrono::duration<double,std::milli> exec_time;
     
     const type range_start = 0;
@@ -210,11 +221,16 @@ int main(int argc,char** argv) {
             showMatrix(b);
         }
       start_time = std::chrono::steady_clock::now();
+      comm_time -= MPI_Wtime();
     }
     
     MPI_Bcast(a,MATRIX_SIZE * MATRIX_SIZE,MPI_INT,0,MPI_COMM_WORLD);
     MPI_Bcast(b,MATRIX_SIZE * MATRIX_SIZE,MPI_INT,0,MPI_COMM_WORLD);
-    //std::cout<<"worker_rank:" << world_rank << "after Bcast"<< std::endl;
+    
+    if(world_rank == 0){
+      comm_time += MPI_Wtime();
+    }
+
     int start_end_operation[2] = {0,0};
     
     const int all_operations = (MATRIX_SIZE * MATRIX_SIZE);
@@ -227,7 +243,9 @@ int main(int argc,char** argv) {
             start_end_operation[1] = op_for_one * (thread_id+1) + rest_op * ( thread_id == world_size-1 );
             
             if(thread_id != 0){
+                comm_time -= MPI_Wtime()
                 MPI_Send(&start_end_operation, 2, MPI_INT,thread_id , 0, MPI_COMM_WORLD);
+                comm_time += MPI_Wtime()
             }
         }
     }else{
@@ -243,7 +261,9 @@ int main(int argc,char** argv) {
         //std::cout<<"worker 0 allocated memory RecvMatrix = "<<RecvMatrix<<std::endl;
         for(int thread_id = world_size-1; thread_id > 0; thread_id--){
             //std::cout<<"worker 0 strat loop:"<<thread_id<<std::endl;
+            comm_time -= MPI_Wtime()
             MPI_Recv(RecvMatrix,(op_for_one + rest_op* ( thread_id == (world_size-1) )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            comm_time += MPI_Wtime()
             //std::cout<<"worker 0 recived data"<<std::endl;
             for (int i = 0; i< (op_for_one + rest_op* ( thread_id == (world_size-1) )); i++){
             //std::cout<<"worker 0|  FROM c["<<thread_id * op_for_one + i<<"] = rcv["<<i<<"]"<<std::endl;
@@ -261,7 +281,9 @@ int main(int argc,char** argv) {
         if(MANUAL_TEST){
             //showMatrix(c);
             std::cout<<"Solution achived in: "<< exec_time.count() << "ms" <<std::endl;
+            std::cout<<"Communication time: "<< comm_time << "??"<<std::endl;
         }else{
+            if()
             std::cout<< exec_time.count();
         }
     }else{
