@@ -167,7 +167,8 @@ void reed_matsize(int argc,char** argv){
     MATRIX_SIZE = std::stoi(argv[argc -1]);
   }//std::cout<<"reed_states";
   if(argc > 4 || argc == 3){//To daje możliwość odpalenia Size,comunication/c,rangeFrom,rangeTo lub Size,communication/c
-    collect_communication_time = (argv[argc - 2][0] == "c");
+    char flag = argv[argc - 2][0]; // Read the first character of the argument
+    collect_communication_time = (flag == 'c'); // Compare it with 'c'
   }
   if(argc > 4){
     RANGE_TO = std::stoi(argv[argc -3]);
@@ -243,9 +244,9 @@ int main(int argc,char** argv) {
             start_end_operation[1] = op_for_one * (thread_id+1) + rest_op * ( thread_id == world_size-1 );
             
             if(thread_id != 0){
-                comm_time -= MPI_Wtime()
+                comm_time -= MPI_Wtime();
                 MPI_Send(&start_end_operation, 2, MPI_INT,thread_id , 0, MPI_COMM_WORLD);
-                comm_time += MPI_Wtime()
+                comm_time += MPI_Wtime();
             }
         }
     }else{
@@ -261,9 +262,9 @@ int main(int argc,char** argv) {
         //std::cout<<"worker 0 allocated memory RecvMatrix = "<<RecvMatrix<<std::endl;
         for(int thread_id = world_size-1; thread_id > 0; thread_id--){
             //std::cout<<"worker 0 strat loop:"<<thread_id<<std::endl;
-            comm_time -= MPI_Wtime()
+            comm_time -= MPI_Wtime();
             MPI_Recv(RecvMatrix,(op_for_one + rest_op* ( thread_id == (world_size-1) )),MPI_INT,thread_id,thread_id,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            comm_time += MPI_Wtime()
+            comm_time += MPI_Wtime();
             //std::cout<<"worker 0 recived data"<<std::endl;
             for (int i = 0; i< (op_for_one + rest_op* ( thread_id == (world_size-1) )); i++){
             //std::cout<<"worker 0|  FROM c["<<thread_id * op_for_one + i<<"] = rcv["<<i<<"]"<<std::endl;
@@ -283,7 +284,7 @@ int main(int argc,char** argv) {
             std::cout<<"Solution achived in: "<< exec_time.count() << "ms" <<std::endl;
             std::cout<<"Communication time: "<< comm_time << "??"<<std::endl;
         }else{
-            if()
+            // if()
             std::cout<< exec_time.count();
         }
     }else{
