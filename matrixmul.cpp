@@ -282,10 +282,13 @@ int main(int argc,char** argv) {
         if(MANUAL_TEST){
             //showMatrix(c);
             std::cout<<"Solution achived in: "<< exec_time.count() << "ms" <<std::endl;
-            std::cout<<"Communication time: "<< comm_time << "??"<<std::endl;
+            std::cout<<"Communication time: "<< comm_time*1000.0 << "ms"<<std::endl;
         }else{
-            // if()
-            std::cout<< exec_time.count();
+            if(collect_communication_time){
+                std::cout<< comm_time*1000.0;
+            }else{
+                std::cout<< exec_time.count();
+            }
         }
     }else{
         //showMatrix(c);
