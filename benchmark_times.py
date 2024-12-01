@@ -52,7 +52,7 @@ program_ortodox = "./eigen"
 program_panmicia = "./seq"
 
 procs_list = [1,2,4,6,8,12,16,32]  # Liczba procesorów
-repeats_list = [10]*10  # Liczba powtórzeń
+repeats_list = [10]*50  # Liczba powtórzeń
 repeats = 1000
 
 matrix_size = list(range(10,100,10))
@@ -60,7 +60,7 @@ matrix_size += list(range(100,1100,100))
 
 print(matrix_size)
 # Zbieranie wyników
-output_file = "times_comm.csv"
+output_file = "times_comm2.csv"
 i = 0
 with open(output_file, "w") as f:
     f.write("processes,size,time\n")
